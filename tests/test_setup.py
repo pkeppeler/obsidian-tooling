@@ -1,0 +1,225 @@
+"""Tests for the setup bootstrap.
+
+Each test builds a fake repo under `tmp_path` mirroring the real layout
+(committed `local-example/` + `commands/`), then calls into `setup()` or
+`main()` with explicit `repo_root` / `commands_install_dir` so the test
+never touches `~/.claude/commands/` or the real `local/`.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from obsidian_tooling.setup import (
+    link_target,
+    main,
+    setup,
+)
+
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    """Fake repo with local-example/ + commands/ that setup() can consume."""
+    template = tmp_path / "local-example"
+    template.mkdir()
+    (template / "vault-config.toml").write_text(
+        '[vault]\npath = "./local/vault"\ninbox = "00 Inbox.md"\n'
+        "\n"
+        '[sweep]\nsources = ["Next Actions.md"]\narchive_dir = "Archive"\n',
+        encoding="utf-8",
+    )
+    (template / "MY-VAULT.md").write_text("# My Vault\n\n(template body)\n", encoding="utf-8")
+    (template / "vault").mkdir()
+    (template / "vault" / "00 Inbox.md").write_text("# 00 Inbox\n", encoding="utf-8")
+
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    (commands / "triage.md").write_text("---\ndescription: x\n---\nbody\n", encoding="utf-8")
+
+    return tmp_path
+
+
+def test_link_target_chooses_relative_for_in_repo_paths(tmp_path: Path) -> None:
+    link_parent = tmp_path / "local"
+    link_parent.mkdir()
+    target = tmp_path / "local-example" / "vault"
+    target.mkdir(parents=True)
+    result = link_target(target, link_parent, tmp_path)
+    assert result == Path("../local-example/vault")
+
+
+def test_link_target_chooses_absolute_for_out_of_repo_paths(tmp_path: Path) -> None:
+    link_parent = tmp_path / "local"
+    link_parent.mkdir()
+    outside = tmp_path.parent / "elsewhere"
+    result = link_target(outside, link_parent, tmp_path)
+    assert result.is_absolute()
+    assert result == outside.resolve()
+
+
+def test_setup_seeds_local_and_links_vault(repo: Path) -> None:
+    install = repo / ".claude" / "commands"
+    actions = setup(
+        repo / "local-example" / "vault",
+        repo_root=repo,
+        commands_install_dir=install,
+    )
+
+    local = repo / "local"
+    assert (local / "vault-config.toml").exists()
+    assert (local / "MY-VAULT.md").exists()
+    assert (local / "vault").is_symlink()
+    assert (local / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+
+    # vault-config.toml is copied verbatim — the symlink does the routing.
+    config = (local / "vault-config.toml").read_text(encoding="utf-8")
+    assert 'path = "./local/vault"' in config
+
+    # Slash command was symlinked into the install dir
+    assert (install / "triage.md").is_symlink()
+    assert (install / "triage.md").resolve() == (repo / "commands" / "triage.md").resolve()
+
+    assert any("write local/vault-config.toml" in a for a in actions)
+    assert any("link local/vault" in a for a in actions)
+
+
+def test_setup_is_idempotent(repo: Path) -> None:
+    install = repo / ".claude" / "commands"
+    first = setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    second = setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+
+    # First run writes everything; second run skips because targets exist.
+    assert sum("write " in a for a in first) == 2  # vault-config.toml + MY-VAULT.md
+    assert all("skip" in a or "link" not in a for a in second if "vault" in a)
+    assert sum("skip" in a for a in second) >= 3  # config, MY-VAULT, vault symlink
+
+
+def test_setup_force_overwrites_existing_files(repo: Path) -> None:
+    install = repo / ".claude" / "commands"
+    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+
+    # User-edited content gets overwritten under --force.
+    (repo / "local" / "MY-VAULT.md").write_text("# edited\n", encoding="utf-8")
+    setup(
+        repo / "local-example" / "vault",
+        repo_root=repo,
+        commands_install_dir=install,
+        force=True,
+    )
+    assert "# edited" not in (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8")
+
+
+def test_setup_repoints_existing_symlink_with_force(repo: Path) -> None:
+    install = repo / ".claude" / "commands"
+    other_vault = repo / "other-vault"
+    other_vault.mkdir()
+
+    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    assert (repo / "local" / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+
+    actions = setup(
+        other_vault,
+        repo_root=repo,
+        commands_install_dir=install,
+        force=True,
+    )
+    assert (repo / "local" / "vault").resolve() == other_vault.resolve()
+    assert any("link local/vault" in a for a in actions)
+
+
+def test_setup_in_repo_vault_creates_directory_not_symlink(tmp_path: Path) -> None:
+    """User entering `local/vault` directly gets an in-repo vault directory."""
+    # Build a minimal repo fixture
+    template = tmp_path / "local-example"
+    template.mkdir()
+    (template / "vault-config.toml").write_text(
+        '[vault]\npath = "./local/vault"\n', encoding="utf-8"
+    )
+    (template / "MY-VAULT.md").write_text("# My Vault\n", encoding="utf-8")
+    (template / "vault").mkdir()
+    (tmp_path / "commands").mkdir()
+
+    actions = setup(
+        tmp_path / "local" / "vault",
+        repo_root=tmp_path,
+        commands_install_dir=tmp_path / ".claude" / "commands",
+    )
+    vault_link = tmp_path / "local" / "vault"
+    assert vault_link.is_dir()
+    assert not vault_link.is_symlink()
+    assert any("create local/vault/" in a for a in actions)
+
+
+def test_setup_in_repo_vault_idempotent(tmp_path: Path) -> None:
+    template = tmp_path / "local-example"
+    template.mkdir()
+    (template / "vault-config.toml").write_text(
+        '[vault]\npath = "./local/vault"\n', encoding="utf-8"
+    )
+    (template / "MY-VAULT.md").write_text("# My Vault\n", encoding="utf-8")
+    (template / "vault").mkdir()
+    (tmp_path / "commands").mkdir()
+
+    setup(
+        tmp_path / "local" / "vault",
+        repo_root=tmp_path,
+        commands_install_dir=tmp_path / ".claude" / "commands",
+    )
+    # Add a file to the in-repo vault to confirm second run doesn't wipe it
+    (tmp_path / "local" / "vault" / "00 Inbox.md").write_text("# Inbox\n", encoding="utf-8")
+
+    actions = setup(
+        tmp_path / "local" / "vault",
+        repo_root=tmp_path,
+        commands_install_dir=tmp_path / ".claude" / "commands",
+    )
+    assert (tmp_path / "local" / "vault" / "00 Inbox.md").exists()
+    assert any("already an in-repo directory" in a for a in actions)
+
+
+def test_setup_skips_existing_symlink_without_force(repo: Path) -> None:
+    install = repo / ".claude" / "commands"
+    other_vault = repo / "other-vault"
+    other_vault.mkdir()
+
+    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    actions = setup(other_vault, repo_root=repo, commands_install_dir=install)
+    # Symlink unchanged
+    assert (repo / "local" / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+    assert any("--force to repoint" in a for a in actions)
+
+
+def test_main_fails_in_non_interactive_without_vault(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "--non-interactive",
+            "--repo-root",
+            str(repo),
+            "--commands-install-dir",
+            str(repo / ".claude" / "commands"),
+        ]
+    )
+    assert rc == 2
+    assert "--vault is required" in capsys.readouterr().err
+
+
+def test_main_runs_end_to_end_with_vault_flag(repo: Path) -> None:
+    rc = main(
+        [
+            "--vault",
+            str(repo / "local-example" / "vault"),
+            "--non-interactive",
+            "--repo-root",
+            str(repo),
+            "--commands-install-dir",
+            str(repo / ".claude" / "commands"),
+        ]
+    )
+    assert rc == 0
+    assert (repo / "local" / "vault-config.toml").exists()
+    assert (repo / "local" / "vault").is_symlink()
+    assert (repo / ".claude" / "commands" / "triage.md").is_symlink()

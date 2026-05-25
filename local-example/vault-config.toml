@@ -1,0 +1,33 @@
+# vault-config.toml — mechanical config for this checkout.
+#
+# Copy this file (or let `scripts/setup.py` do it) into `local/vault-config.toml`
+# and edit. The scripts in this repo read from `local/vault-config.toml`.
+
+[vault]
+# Points at the `local/vault` symlink, which `scripts/setup.py` creates
+# pointing at your real vault. Repoint the symlink (or re-run setup with
+# --force) if your vault ever moves; this path stays the same.
+path = "./local/vault"
+
+# Filename of the capture inbox inside the vault.
+inbox = "00 Inbox.md"
+
+[sweep]
+# Files inside the vault that `sweep-done.py` harvests `- [x]` lines from.
+# Each completed task is appended to `<archive_dir>/Done <YYYY-MM>.md` under a
+# `## From: <filename>` header, then removed from the source.
+#
+# Add filenames that should follow the "context-list" pattern (orphan tasks
+# with no surrounding project history worth preserving). Project files, area
+# files, etc. should NOT be listed here — completed tasks in those are
+# project history.
+sources = ["Next Actions.md"]
+
+# Subdirectory under the vault where monthly Done archives are written.
+archive_dir = "Archive"
+
+[integrations]
+# MCP tool name used by the /triage slash command to create Google Calendar
+# events for date-bound items. Leave commented out / empty if you don't have
+# a Calendar MCP installed — /triage will skip the calendar-routing branch.
+# calendar_tool = "mcp__claude_ai_Google_Calendar__create_event"

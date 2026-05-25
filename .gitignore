@@ -1,0 +1,23 @@
+# Personal workspace — config, vault symlink, working files, anything not
+# promoted to shared tooling. The committed `local-example/` shows the shape.
+/local/
+
+# macOS
+.DS_Store
+
+# Claude local cache + per-user settings
+.claude/cache/
+.claude/projects/
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+*.egg-info/
+.venv
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
