@@ -111,8 +111,7 @@ def _link_vault(
             return
         if not force:
             actions.append(
-                f"skip {rel} (points at {current_abs}; "
-                f"--force to repoint to {desired_abs})"
+                f"skip {rel} (points at {current_abs}; --force to repoint to {desired_abs})"
             )
             return
         vault_link.unlink()
@@ -144,8 +143,8 @@ def _seed_vault_skeleton(
         return
     try:
         actual_vault = vault_link.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return  # dangling symlink or other resolution failure
+    except OSError:
+        return  # dangling symlink, loop, or permission error
     if not actual_vault.is_dir():
         return
     # Don't seed the example into itself if a user pointed --vault directly at it.
@@ -183,10 +182,7 @@ def _install_slash_commands(
                 actions.append(f"skip {dst} (already linked to {target})")
                 continue
             if not force:
-                actions.append(
-                    f"skip {dst} (points at {current}; "
-                    f"--force to relink to {target})"
-                )
+                actions.append(f"skip {dst} (points at {current}; --force to relink to {target})")
                 continue
             dst.unlink()
         elif dst.exists():

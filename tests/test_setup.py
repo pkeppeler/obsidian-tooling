@@ -151,8 +151,7 @@ def test_setup_force_link_repoints_symlink_without_touching_seed_files(repo: Pat
     # The existing-but-skipped seed file is reflected in actions, not overwritten.
     assert any("skip local/MY-VAULT.md" in a for a in actions)
     # No action should start with an overwrite verb (skip messages can mention the word).
-    assert not any(a.startswith(("OVERWRITE ", "overwrite ", "write local/"))
-                   for a in actions)
+    assert not any(a.startswith(("OVERWRITE ", "overwrite ", "write local/")) for a in actions)
 
 
 def test_setup_repoints_existing_symlink_with_force(repo: Path) -> None:
