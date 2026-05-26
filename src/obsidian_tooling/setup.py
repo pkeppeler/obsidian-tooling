@@ -100,7 +100,10 @@ def _link_vault(
             actions.append(f"skip {rel} (already points at {desired_abs})")
             return
         if not force:
-            actions.append(f"skip {rel} (points at {current_abs}; --force to repoint)")
+            actions.append(
+                f"skip {rel} (points at {current_abs}; "
+                f"--force to repoint to {desired_abs})"
+            )
             return
         vault_link.unlink()
     elif vault_link.exists():
@@ -127,11 +130,15 @@ def _install_slash_commands(
         dst = install_dir / cmd.name
         target = cmd.resolve()
         if dst.is_symlink():
-            if dst.readlink().resolve() == target:
-                actions.append(f"skip {dst} (already linked)")
+            current = dst.readlink().resolve()
+            if current == target:
+                actions.append(f"skip {dst} (already linked to {target})")
                 continue
             if not force:
-                actions.append(f"skip {dst} (points elsewhere; --force to relink)")
+                actions.append(
+                    f"skip {dst} (points at {current}; "
+                    f"--force to relink to {target})"
+                )
                 continue
             dst.unlink()
         elif dst.exists():
@@ -273,7 +280,13 @@ def main(argv: list[str] | None = None) -> int:
         "\n  1. Edit local/MY-VAULT.md with your personal context and routing rules."
         "\n  2. Edit local/vault-config.toml if you want to customize sweep sources"
         "\n     or enable the Calendar MCP integration."
-        "\n  3. Run /triage in Claude Code to try the inbox-triage protocol."
+        "\n  3. Open your vault in Obsidian and install two community plugins"
+        "\n     (Settings -> Community plugins -> Browse): 'Tasks' and 'Dataview'."
+        "\n     The dashboard and sweep workflow depend on Tasks."
+        "\n  4. If your vault is empty, copy the bundled skeleton into it:"
+        "\n       cp -r local-example/vault/* local/vault/"
+        "\n     (PowerShell: Copy-Item -Recurse local-example\\vault\\* local\\vault\\)"
+        "\n  5. Run /triage in Claude Code to try the inbox-triage protocol."
     )
     return 0
 
