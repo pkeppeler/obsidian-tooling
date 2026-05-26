@@ -66,9 +66,11 @@ def vault(tmp_path: Path) -> Path:
 def write_config(vault: Path, sources: tuple[str, ...] = DEFAULT_SOURCES) -> Path:
     """Write a vault-config.toml in `vault`'s parent and return its path."""
     config_path = vault.parent / "vault-config.toml"
-    sources_toml = ", ".join(f'"{s}"' for s in sources)
+    sources_toml = ", ".join(f"'{s}'" for s in sources)
+    # TOML literal strings (single-quoted) preserve backslashes verbatim, so
+    # Windows paths like C:\Users\... don't get parsed as escape sequences.
     config_path.write_text(
-        f'[vault]\npath = "{vault}"\n\n[sweep]\nsources = [{sources_toml}]\n',
+        f"[vault]\npath = '{vault}'\n\n[sweep]\nsources = [{sources_toml}]\n",
         encoding="utf-8",
     )
     return config_path
@@ -233,7 +235,7 @@ def test_main_vault_flag_overrides_config(vault: Path, tmp_path: Path) -> None:
     bogus = tmp_path / "does-not-exist"
     config_path = tmp_path / "vault-config.toml"
     config_path.write_text(
-        f'[vault]\npath = "{bogus}"\n\n[sweep]\nsources = ["Next Actions.md"]\n',
+        f"[vault]\npath = '{bogus}'\n\n[sweep]\nsources = ['Next Actions.md']\n",
         encoding="utf-8",
     )
     assert main(["--config", str(config_path), "--vault", str(vault)]) == 0
@@ -243,7 +245,7 @@ def test_main_returns_nonzero_when_vault_missing(tmp_path: Path) -> None:
     config_path = tmp_path / "vault-config.toml"
     missing = tmp_path / "nope"
     config_path.write_text(
-        f'[vault]\npath = "{missing}"\n\n[sweep]\nsources = ["Next Actions.md"]\n',
+        f"[vault]\npath = '{missing}'\n\n[sweep]\nsources = ['Next Actions.md']\n",
         encoding="utf-8",
     )
     assert main(["--config", str(config_path)]) == 2

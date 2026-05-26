@@ -57,7 +57,7 @@ def _seed_file(
     actions: list[str],
     repo_root: Path,
 ) -> None:
-    rel = dst.relative_to(repo_root)
+    rel = dst.relative_to(repo_root).as_posix()
     if dst.exists() and not force:
         actions.append(f"skip {rel} (already exists; --force to overwrite)")
         return
@@ -73,7 +73,7 @@ def _link_vault(
     force: bool,
     actions: list[str],
 ) -> None:
-    rel = vault_link.relative_to(repo_root)
+    rel = vault_link.relative_to(repo_root).as_posix()
 
     # In-repo vault: user wants the vault to BE at local/vault itself (no symlink).
     # Detect by absolute-path equality so a fresh checkout doesn't follow a stale link.
