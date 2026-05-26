@@ -111,6 +111,50 @@ def test_setup_force_overwrites_existing_files(repo: Path) -> None:
     assert "# edited" not in (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8")
 
 
+def test_setup_force_warns_loudly_when_overwriting_customized_files(repo: Path) -> None:
+    """OVERWRITE (uppercase) in the action lets the user spot what they just lost."""
+    install = repo / ".claude" / "commands"
+    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+
+    (repo / "local" / "MY-VAULT.md").write_text("# heavily customized\n", encoding="utf-8")
+    actions = setup(
+        repo / "local-example" / "vault",
+        repo_root=repo,
+        commands_install_dir=install,
+        force=True,
+    )
+    assert any("OVERWRITE local/MY-VAULT.md" in a and "previous content lost" in a for a in actions)
+    # The unmodified vault-config.toml should use the quieter lowercase variant.
+    assert any("overwrite local/vault-config.toml" in a and "no content lost" in a for a in actions)
+
+
+def test_setup_force_link_repoints_symlink_without_touching_seed_files(repo: Path) -> None:
+    """--force-link is the safe knob for 'just repoint my vault symlink'."""
+    install = repo / ".claude" / "commands"
+    other_vault = repo / "other-vault"
+    other_vault.mkdir()
+
+    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    (repo / "local" / "MY-VAULT.md").write_text("# customized\n", encoding="utf-8")
+
+    actions = setup(
+        other_vault,
+        repo_root=repo,
+        commands_install_dir=install,
+        force_link=True,
+    )
+
+    # Symlink moved.
+    assert (repo / "local" / "vault").resolve() == other_vault.resolve()
+    # Seed file untouched.
+    assert (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8") == "# customized\n"
+    # The existing-but-skipped seed file is reflected in actions, not overwritten.
+    assert any("skip local/MY-VAULT.md" in a for a in actions)
+    # No action should start with an overwrite verb (skip messages can mention the word).
+    assert not any(a.startswith(("OVERWRITE ", "overwrite ", "write local/"))
+                   for a in actions)
+
+
 def test_setup_repoints_existing_symlink_with_force(repo: Path) -> None:
     install = repo / ".claude" / "commands"
     other_vault = repo / "other-vault"
