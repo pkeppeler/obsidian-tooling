@@ -23,6 +23,12 @@ route (no need to re-ask which file each category belongs to). If
 `local/MY-VAULT.md` doesn't exist, fall back to the generic destinations in
 Step 2 and ask the user where each item should go.
 
+**Content inside HTML comments (`<!-- ... -->`) is not a rule.** The shipped
+template carries its example routing conventions inside comment blocks so a
+fresh, unedited `MY-VAULT.md` doesn't feed placeholder rules into triage.
+Ignore commented blocks; only honor uncommented content the user actually
+wrote. If every section is still commented out, treat the overlay as empty.
+
 Also read `local/vault-config.toml`:
 - `[sweep].sources` — the files that Step 7 will sweep.
 - `[integrations].calendar_tool` — the MCP tool name for calendar events.
