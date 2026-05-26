@@ -33,6 +33,7 @@ __all__ = ["link_target", "main", "setup"]
 DEFAULT_COMMANDS_INSTALL_DIR = Path.home() / ".claude" / "commands"
 TEMPLATE_DIR_NAME = "local-example"
 LOCAL_DIR_NAME = "local"
+EXAMPLE_VAULT_RELPATH = "local-example/vault"
 _PROMPT_ABORT_ERRORS: tuple[type[BaseException], ...] = (EOFError, KeyboardInterrupt)
 
 
@@ -57,9 +58,18 @@ def _seed_file(
     actions: list[str],
     repo_root: Path,
 ) -> None:
-    rel = dst.relative_to(repo_root)
-    if dst.exists() and not force:
-        actions.append(f"skip {rel} (already exists; --force to overwrite)")
+    rel = dst.relative_to(repo_root).as_posix()
+    if dst.exists():
+        if not force:
+            actions.append(f"skip {rel} (already exists; --force to overwrite)")
+            return
+        # --force overwriting: flag if the destination diverged from the template,
+        # so the user can tell whether their customizations just got clobbered.
+        if dst.read_bytes() != src.read_bytes():
+            actions.append(f"OVERWRITE {rel} (was customized; previous content lost)")
+        else:
+            actions.append(f"overwrite {rel} (matched template; no content lost)")
+        shutil.copy2(src, dst)
         return
     shutil.copy2(src, dst)
     actions.append(f"write {rel}")
@@ -73,7 +83,7 @@ def _link_vault(
     force: bool,
     actions: list[str],
 ) -> None:
-    rel = vault_link.relative_to(repo_root)
+    rel = vault_link.relative_to(repo_root).as_posix()
 
     # In-repo vault: user wants the vault to BE at local/vault itself (no symlink).
     # Detect by absolute-path equality so a fresh checkout doesn't follow a stale link.
@@ -100,7 +110,9 @@ def _link_vault(
             actions.append(f"skip {rel} (already points at {desired_abs})")
             return
         if not force:
-            actions.append(f"skip {rel} (points at {current_abs}; --force to repoint)")
+            actions.append(
+                f"skip {rel} (points at {current_abs}; --force to repoint to {desired_abs})"
+            )
             return
         vault_link.unlink()
     elif vault_link.exists():
@@ -115,6 +127,44 @@ def _link_vault(
     actions.append(f"link {rel} -> {target}")
 
 
+def _seed_vault_skeleton(
+    vault_link: Path,
+    example_vault: Path,
+    *,
+    repo_root: Path,
+    actions: list[str],
+) -> None:
+    """Populate an empty vault with the bundled skeleton (Inbox, Dashboard, etc.).
+
+    Runs only when the vault is empty or contains nothing but `.obsidian/` (an
+    existing Obsidian config without notes). Never overwrites user content.
+    """
+    if not vault_link.exists():
+        return
+    try:
+        actual_vault = vault_link.resolve(strict=True)
+    except OSError:
+        return  # dangling symlink, loop, or permission error
+    if not actual_vault.is_dir():
+        return
+    # Don't seed the example into itself if a user pointed --vault directly at it.
+    if actual_vault == example_vault.resolve():
+        return
+    user_content = [p for p in actual_vault.iterdir() if p.name != ".obsidian"]
+    if user_content:
+        return
+    for src in example_vault.iterdir():
+        if src.name == ".obsidian":
+            continue
+        dst = actual_vault / src.name
+        if src.is_dir():
+            shutil.copytree(src, dst)
+        else:
+            shutil.copy2(src, dst)
+    rel = vault_link.relative_to(repo_root).as_posix()
+    actions.append(f"seed {rel}/ with skeleton from {EXAMPLE_VAULT_RELPATH}/")
+
+
 def _install_slash_commands(
     commands_dir: Path,
     install_dir: Path,
@@ -127,11 +177,12 @@ def _install_slash_commands(
         dst = install_dir / cmd.name
         target = cmd.resolve()
         if dst.is_symlink():
-            if dst.readlink().resolve() == target:
-                actions.append(f"skip {dst} (already linked)")
+            current = dst.readlink().resolve()
+            if current == target:
+                actions.append(f"skip {dst} (already linked to {target})")
                 continue
             if not force:
-                actions.append(f"skip {dst} (points elsewhere; --force to relink)")
+                actions.append(f"skip {dst} (points at {current}; --force to relink to {target})")
                 continue
             dst.unlink()
         elif dst.exists():
@@ -149,15 +200,33 @@ def setup(
     repo_root: Path,
     commands_install_dir: Path,
     force: bool = False,
+    force_link: bool = False,
 ) -> list[str]:
     """Seed `local/` from `local-example/` and install slash commands.
+
+    `force` overwrites everything: seed files, vault symlink, command links.
+    `force_link` only forces symlink repointing (vault + commands); seed
+    files in `local/` are left alone. This is the safe knob for "I just
+    moved my vault and need to repoint local/vault without risking my
+    customized local/MY-VAULT.md."
 
     Returns a list of human-readable action descriptions for the final summary.
     """
     template_dir = repo_root / TEMPLATE_DIR_NAME
     local_dir = repo_root / LOCAL_DIR_NAME
+    example_vault = repo_root / TEMPLATE_DIR_NAME / "vault"
     local_dir.mkdir(exist_ok=True)
     actions: list[str] = []
+    force_symlinks = force or force_link
+
+    # If the user pointed --vault at the tracked example, redirect to local/vault
+    # (an in-repo gitignored copy) so /triage doesn't mutate tracked files.
+    if vault_path.exists() and vault_path.resolve() == example_vault.resolve():
+        vault_path = local_dir / "vault"
+        actions.append(
+            f"redirect {EXAMPLE_VAULT_RELPATH} -> local/vault "
+            "(demo runs in a gitignored copy; tracked example stays clean)"
+        )
 
     for name in ("vault-config.toml", "MY-VAULT.md"):
         _seed_file(
@@ -171,13 +240,19 @@ def setup(
         local_dir / "vault",
         vault_path,
         repo_root=repo_root,
-        force=force,
+        force=force_symlinks,
+        actions=actions,
+    )
+    _seed_vault_skeleton(
+        local_dir / "vault",
+        example_vault,
+        repo_root=repo_root,
         actions=actions,
     )
     _install_slash_commands(
         repo_root / "commands",
         commands_install_dir,
-        force=force,
+        force=force_symlinks,
         actions=actions,
     )
     return actions
@@ -199,6 +274,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Overwrite existing local/ files and repoint existing symlinks.",
     )
     parser.add_argument(
+        "--force-link",
+        action="store_true",
+        help=(
+            "Repoint existing symlinks (vault + slash commands) without "
+            "touching local/ seed files. Use this when you've moved your "
+            "vault and want to re-link without risking your customized "
+            "local/MY-VAULT.md or local/vault-config.toml."
+        ),
+    )
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help="Don't prompt for missing values; fail instead.",
@@ -217,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     force = cast(bool, args.force)
+    force_link = cast(bool, args.force_link)
     non_interactive = cast(bool, args.non_interactive)
     vault_path = cast("Path | None", args.vault)
     repo_root_override = cast("Path | None", args.repo_root)
@@ -263,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root=repo_root,
         commands_install_dir=commands_install_dir,
         force=force,
+        force_link=force_link,
     )
 
     print("\nSetup complete:")
@@ -273,7 +360,13 @@ def main(argv: list[str] | None = None) -> int:
         "\n  1. Edit local/MY-VAULT.md with your personal context and routing rules."
         "\n  2. Edit local/vault-config.toml if you want to customize sweep sources"
         "\n     or enable the Calendar MCP integration."
-        "\n  3. Run /triage in Claude Code to try the inbox-triage protocol."
+        "\n  3. Open your vault in Obsidian and install two community plugins"
+        "\n     (Settings -> Community plugins -> Browse): 'Tasks' and 'Dataview'."
+        "\n     The dashboard and sweep workflow depend on Tasks."
+        "\n  4. If your vault is empty, copy the bundled skeleton into it:"
+        "\n       cp -r local-example/vault/* local/vault/"
+        "\n     (PowerShell: Copy-Item -Recurse local-example\\vault\\* local\\vault\\)"
+        "\n  5. Run /triage in Claude Code to try the inbox-triage protocol."
     )
     return 0
 

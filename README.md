@@ -112,9 +112,10 @@ directory; open it in Obsidian (File → Open vault → select
 
 ### Just trying it out
 
-→ Enter `local-example/vault` at the prompt to point at the bundled
-skeleton vault. You can play with `/triage` against safe sample content
-without touching your real notes.
+→ Enter `local-example/vault` at the prompt. Setup copies the bundled
+skeleton into `local/vault/` (a gitignored in-repo copy) and points
+`local/vault` there, so you can play with `/triage` against sample content
+without mutating the tracked example or touching your real notes.
 
 ## Quickstart
 
@@ -133,13 +134,72 @@ uv run scripts/setup.py
 
 After setup:
 
-1. Open `local/MY-VAULT.md` and replace the template content with your own
-   personal context and routing conventions.
-2. In Claude Code, run `/triage` to test the protocol against your vault
+1. Open `local/MY-VAULT.md` and replace the commented example blocks with
+   your own personal context and routing conventions. (Until you do, the
+   examples stay inside HTML comments so `/triage` doesn't read them as
+   real rules.)
+2. Open your vault in Obsidian and install the **Tasks** and **Dataview**
+   community plugins — the dashboard and sweep workflow depend on Tasks.
+3. In Claude Code, run `/triage` to test the protocol against your vault
    (or the example vault).
-3. Commit nothing inside `local/` — it's gitignored. Promote learnings to
+4. Commit nothing inside `local/` — it's gitignored. Promote learnings to
    the shared docs (`CLAUDE.md`, `commands/triage.md`) when they apply
    generically.
+
+## Windows
+
+The tooling is tested on Windows (CI runs the suite on `windows-latest`),
+with a few platform quirks worth knowing.
+
+### Enable symlink creation first
+
+`setup.py` creates symlinks (`local/vault` and the slash-command links in
+`~/.claude/commands/`). On Windows, creating a symlink needs elevated
+privileges **unless Developer Mode is on**. Turn it on once:
+
+> **Settings → System → For developers → Developer Mode → On**
+
+Without it, setup fails with
+`OSError: [WinError 1314] A required privilege is not held by the client`.
+(Alternatively, run your shell as Administrator.)
+
+### PowerShell quickstart
+
+```powershell
+git clone https://github.com/<you>/obsidian-tooling.git
+cd obsidian-tooling
+uv sync --dev
+uv run scripts/setup.py
+```
+
+### Repointing or removing the vault symlink
+
+`local/vault` is a directory symlink. To remove or replace it, **don't** use
+`Remove-Item local\vault` — it warns about recursing into the symlink's
+*contents* (i.e. your real vault). Use the symlink-safe form, which deletes
+only the link:
+
+```powershell
+cmd /c rmdir local\vault
+```
+
+Better: let setup repoint it without touching your `local/` config:
+
+```powershell
+uv run scripts/setup.py --vault C:\path\to\new\vault --force-link
+```
+
+`--force-link` repoints symlinks (vault + slash commands) only; it never
+overwrites your customized `local/MY-VAULT.md` or `local/vault-config.toml`.
+(Plain `--force` overwrites those too — it labels customized files as
+`OVERWRITE` in its summary so you can see what changed.)
+
+### Keeping an in-repo vault out of git
+
+The only supported in-repo vault location is `local/vault` (covered by the
+`/local/` ignore rule). If you put a vault anywhere else inside the repo
+(e.g. a top-level `GTD_Notes\`), add that folder to `.gitignore` so it never
+lands in a commit.
 
 ## Repo layout
 

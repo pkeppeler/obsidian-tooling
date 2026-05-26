@@ -38,6 +38,10 @@ def repo(tmp_path: Path) -> Path:
     commands.mkdir()
     (commands / "triage.md").write_text("---\ndescription: x\n---\nbody\n", encoding="utf-8")
 
+    # Pre-create an external vault directory that tests can target when they
+    # want to exercise the external-symlink branch (separate from the example).
+    (tmp_path / "external-vault").mkdir()
+
     return tmp_path
 
 
@@ -60,9 +64,11 @@ def test_link_target_chooses_absolute_for_out_of_repo_paths(tmp_path: Path) -> N
 
 
 def test_setup_seeds_local_and_links_vault(repo: Path) -> None:
+    """External-vault path: setup writes seed files and symlinks local/vault."""
     install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
     actions = setup(
-        repo / "local-example" / "vault",
+        external,
         repo_root=repo,
         commands_install_dir=install,
     )
@@ -71,7 +77,7 @@ def test_setup_seeds_local_and_links_vault(repo: Path) -> None:
     assert (local / "vault-config.toml").exists()
     assert (local / "MY-VAULT.md").exists()
     assert (local / "vault").is_symlink()
-    assert (local / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+    assert (local / "vault").resolve() == external.resolve()
 
     # vault-config.toml is copied verbatim — the symlink does the routing.
     config = (local / "vault-config.toml").read_text(encoding="utf-8")
@@ -87,8 +93,9 @@ def test_setup_seeds_local_and_links_vault(repo: Path) -> None:
 
 def test_setup_is_idempotent(repo: Path) -> None:
     install = repo / ".claude" / "commands"
-    first = setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
-    second = setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    external = repo / "external-vault"
+    first = setup(external, repo_root=repo, commands_install_dir=install)
+    second = setup(external, repo_root=repo, commands_install_dir=install)
 
     # First run writes everything; second run skips because targets exist.
     assert sum("write " in a for a in first) == 2  # vault-config.toml + MY-VAULT.md
@@ -98,26 +105,63 @@ def test_setup_is_idempotent(repo: Path) -> None:
 
 def test_setup_force_overwrites_existing_files(repo: Path) -> None:
     install = repo / ".claude" / "commands"
-    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    external = repo / "external-vault"
+    setup(external, repo_root=repo, commands_install_dir=install)
 
     # User-edited content gets overwritten under --force.
     (repo / "local" / "MY-VAULT.md").write_text("# edited\n", encoding="utf-8")
-    setup(
-        repo / "local-example" / "vault",
+    setup(external, repo_root=repo, commands_install_dir=install, force=True)
+    assert "# edited" not in (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8")
+
+
+def test_setup_force_warns_loudly_when_overwriting_customized_files(repo: Path) -> None:
+    """OVERWRITE (uppercase) in the action lets the user spot what they just lost."""
+    install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
+    setup(external, repo_root=repo, commands_install_dir=install)
+
+    (repo / "local" / "MY-VAULT.md").write_text("# heavily customized\n", encoding="utf-8")
+    actions = setup(external, repo_root=repo, commands_install_dir=install, force=True)
+    assert any("OVERWRITE local/MY-VAULT.md" in a and "previous content lost" in a for a in actions)
+    # The unmodified vault-config.toml should use the quieter lowercase variant.
+    assert any("overwrite local/vault-config.toml" in a and "no content lost" in a for a in actions)
+
+
+def test_setup_force_link_repoints_symlink_without_touching_seed_files(repo: Path) -> None:
+    """--force-link is the safe knob for 'just repoint my vault symlink'."""
+    install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
+    other_vault = repo / "other-vault"
+    other_vault.mkdir()
+
+    setup(external, repo_root=repo, commands_install_dir=install)
+    (repo / "local" / "MY-VAULT.md").write_text("# customized\n", encoding="utf-8")
+
+    actions = setup(
+        other_vault,
         repo_root=repo,
         commands_install_dir=install,
-        force=True,
+        force_link=True,
     )
-    assert "# edited" not in (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8")
+
+    # Symlink moved.
+    assert (repo / "local" / "vault").resolve() == other_vault.resolve()
+    # Seed file untouched.
+    assert (repo / "local" / "MY-VAULT.md").read_text(encoding="utf-8") == "# customized\n"
+    # The existing-but-skipped seed file is reflected in actions, not overwritten.
+    assert any("skip local/MY-VAULT.md" in a for a in actions)
+    # No action should start with an overwrite verb (skip messages can mention the word).
+    assert not any(a.startswith(("OVERWRITE ", "overwrite ", "write local/")) for a in actions)
 
 
 def test_setup_repoints_existing_symlink_with_force(repo: Path) -> None:
     install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
     other_vault = repo / "other-vault"
     other_vault.mkdir()
 
-    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
-    assert (repo / "local" / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+    setup(external, repo_root=repo, commands_install_dir=install)
+    assert (repo / "local" / "vault").resolve() == external.resolve()
 
     actions = setup(
         other_vault,
@@ -127,6 +171,69 @@ def test_setup_repoints_existing_symlink_with_force(repo: Path) -> None:
     )
     assert (repo / "local" / "vault").resolve() == other_vault.resolve()
     assert any("link local/vault" in a for a in actions)
+
+
+def test_setup_redirects_local_example_vault_to_in_repo(repo: Path) -> None:
+    """Pointing --vault at the tracked example redirects to local/vault (in-repo, gitignored)."""
+    install = repo / ".claude" / "commands"
+    actions = setup(
+        repo / "local-example" / "vault",
+        repo_root=repo,
+        commands_install_dir=install,
+    )
+
+    # local/vault is an in-repo directory, NOT a symlink to local-example/vault.
+    vault = repo / "local" / "vault"
+    assert vault.is_dir()
+    assert not vault.is_symlink()
+    # Skeleton was copied across so the demo has working content from the start.
+    assert (vault / "00 Inbox.md").exists()
+    # The tracked example was not modified.
+    assert (repo / "local-example" / "vault" / "00 Inbox.md").read_text(encoding="utf-8") == (
+        "# 00 Inbox\n"
+    )
+    assert any("redirect local-example/vault" in a for a in actions)
+    assert any("seed local/vault/" in a for a in actions)
+
+
+def test_setup_seeds_skeleton_into_empty_external_vault(repo: Path) -> None:
+    """An empty external vault gets the bundled skeleton on first setup."""
+    install = repo / ".claude" / "commands"
+    external = repo / "external-vault"  # empty fixture
+    actions = setup(external, repo_root=repo, commands_install_dir=install)
+
+    # Skeleton landed in the external vault, not in the symlink itself.
+    assert (external / "00 Inbox.md").exists()
+    assert any("seed local/vault/" in a for a in actions)
+
+
+def test_setup_does_not_seed_vault_with_user_content(repo: Path) -> None:
+    """If the vault already has notes, leave them alone — never overwrite."""
+    install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
+    (external / "Existing Note.md").write_text("# do not touch\n", encoding="utf-8")
+
+    actions = setup(external, repo_root=repo, commands_install_dir=install)
+
+    assert (external / "Existing Note.md").read_text(encoding="utf-8") == "# do not touch\n"
+    # Skeleton should NOT have been seeded.
+    assert not (external / "00 Inbox.md").exists()
+    assert not any("seed local/vault/" in a for a in actions)
+
+
+def test_setup_seeds_vault_with_only_obsidian_config(repo: Path) -> None:
+    """An .obsidian/ directory alone is treated as 'infrastructure, not content'."""
+    install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
+    (external / ".obsidian").mkdir()
+    (external / ".obsidian" / "hotkeys.json").write_text("{}\n", encoding="utf-8")
+
+    setup(external, repo_root=repo, commands_install_dir=install)
+
+    # .obsidian preserved.
+    assert (external / ".obsidian" / "hotkeys.json").exists()
+    # Skeleton still seeded.
+    assert (external / "00 Inbox.md").exists()
 
 
 def test_setup_in_repo_vault_creates_directory_not_symlink(tmp_path: Path) -> None:
@@ -181,13 +288,14 @@ def test_setup_in_repo_vault_idempotent(tmp_path: Path) -> None:
 
 def test_setup_skips_existing_symlink_without_force(repo: Path) -> None:
     install = repo / ".claude" / "commands"
+    external = repo / "external-vault"
     other_vault = repo / "other-vault"
     other_vault.mkdir()
 
-    setup(repo / "local-example" / "vault", repo_root=repo, commands_install_dir=install)
+    setup(external, repo_root=repo, commands_install_dir=install)
     actions = setup(other_vault, repo_root=repo, commands_install_dir=install)
     # Symlink unchanged
-    assert (repo / "local" / "vault").resolve() == (repo / "local-example" / "vault").resolve()
+    assert (repo / "local" / "vault").resolve() == external.resolve()
     assert any("--force to repoint" in a for a in actions)
 
 
@@ -211,7 +319,7 @@ def test_main_runs_end_to_end_with_vault_flag(repo: Path) -> None:
     rc = main(
         [
             "--vault",
-            str(repo / "local-example" / "vault"),
+            str(repo / "external-vault"),
             "--non-interactive",
             "--repo-root",
             str(repo),

@@ -12,25 +12,32 @@
 >   during the codify-learnings step at the end of each pass.
 > - **Tag taxonomy** — custom tags you use that extend the generic defaults
 >   (`#p1`/`#p2`/`#p3`, `#next`, `#waiting`, `#project/<slug>`).
+>
+> Example content for each section is in HTML comments below — they show in
+> your editor but `/triage` ignores them. Replace each commented block with
+> your own real content as you go.
 
 ## Personal context
 
+<!--
 A few sentences about you — geographic context, communities, ongoing
 commitments, anything that helps Claude make better routing decisions.
 
-Example:
+Examples (delete and replace with your own):
 
 - Based in <city>.
 - Active community: <name> (weekly meetup, accountability group).
 - Major ongoing project lives at `Projects/<name>.md`.
+-->
 
 ## Established routing conventions
 
+<!--
 Rules for where specific kinds of inbox items go. Treat these as the default
 route — `/triage` will use them without re-asking. You can still confirm
 *within* the file (e.g. which H2 section).
 
-Example shape — replace with your own:
+Example shape (delete and replace with your own):
 
 - **Shopping items** (groceries, household consumables) → `vault/Shopping.md`,
   under `## Groceries` (food) or `## Home` (household). Items can be deleted
@@ -46,14 +53,18 @@ Example shape — replace with your own:
 - **People** (someone's name) → `vault/Resources/People.md` (or split by
   geography if it helps you).
 
-Add more as your vault grows. The point of this file is to keep `commands/triage.md`
-generic and your specific routing rules in one editable place.
+Add more as your vault grows. The point of this file is to keep
+`commands/triage.md` generic and your specific routing rules in one
+editable place.
+-->
 
 ## Tag taxonomy (overrides/extends the defaults)
 
+<!--
 Custom tags you use that aren't in the generic taxonomy.
 
-Example:
+Examples (delete and replace with your own):
 
 - `#someday/<bucket>` — optional sub-bucketing of someday-maybe items.
 - `#waiting/<who>` — extend `#waiting` with the person blocking the task.
+-->
