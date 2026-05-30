@@ -287,6 +287,12 @@ any you install in `local/MY-VAULT.md` so Claude knows what's available.
 - **Don't touch `.obsidian/workspace.json`** in normal operation — per-device
   UI state. (One-time resets during structural cleanups are fine.)
 - **Internal links use `[[Note Name]]`** (Obsidian wikilink convention).
+- **Keep vault files free of HTML usage-comments.** The conventions live
+  here and in `local/MY-VAULT.md` — don't scatter `<!-- how to use this
+  file -->` hints across the inbox, list files, or project files. They only
+  show in edit mode, drift stale, and duplicate this doc. Don't add them
+  during setup or triage; a visible one-line prose intro is fine where a file
+  genuinely needs orienting.
 - **Triage default**: H2 heading in `Projects.md` (multi-step), bullet in
   `Next Actions.md` (single action), or bullet in `Someday Maybe.md` — not
   a new file. Promote to its own file only when the project earns it.
