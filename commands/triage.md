@@ -153,13 +153,13 @@ For each captured item, propose:
   is clearly an action belonging to a project already listed there. Append
   it as a flat `- [ ] …` line directly under the project's heading. **Don't
   use nested bullets** — every active task in `Projects.md` is a top-level
-  bullet under its project's H2 so that Tasks-plugin's `group by heading`
-  picks up the project name as the group label.
+  bullet under its project's H2 so the dashboard backlink renders the H2 as
+  the project label `(Projects > <name>)` next to each task.
 - **New `## Heading` project in `Projects.md`** — when the item is a
   multi-step outcome that isn't represented yet. Add the project as an
   `## H2 heading`, optionally followed by a one-line description, then the
-  initial task list below it. Not a bold bullet — headings are what
-  `group by heading` reads.
+  initial task list below it. Not a bold bullet — the H2 heading is what the
+  dashboard backlink shows as the project label.
 - **New bullet in `Next Actions.md`** — when the item is a single,
   standalone action with no multi-step structure (e.g. "renew passport",
   "call mom about grandma's birthday").
@@ -205,6 +205,17 @@ Use the generic taxonomy from `CLAUDE.md` > Tag taxonomy
 (`#p1`/`#p2`/`#p3`, `#next`, `#waiting`, `#project/<slug>`), plus any
 extensions defined in `local/MY-VAULT.md` > "Tag taxonomy" — apply those
 when the user's rules match.
+
+**`#next` is the dashboard filter — keep it to one per project.** Tag a task
+`#next` only if it's the *single doable-now next action* for its project. If
+the target project already has a `#next` task, the new item gets `#next` only
+when it's now the more-immediate step (then drop `#next` from the old one);
+otherwise leave it untagged and let priority alone carry it. Orphan
+single-actions in `Next Actions.md` each get `#next`.
+
+**Reserve `#p1` for genuinely hot / time-sensitive / this-week items.**
+Default most project lead actions to `#p2`. Don't blanket-`#p1` — if
+everything is P1, the priority bands stop meaning anything.
 
 Hard dates go to the calendar (if configured), not the vault. Don't add
 `📅 YYYY-MM-DD` unless the user specifically asks for a soft
@@ -266,10 +277,6 @@ For each approved item:
 3. Never delete vault files. Never reformat reference docs you're
    appending to.
 
-If a new in-flight project emerges from triage, add a `[[wikilink]]` to
-the in-flight list in `00 Dashboard.md` (under "🔥 In-flight projects").
-Curate; don't append blindly.
-
 ## Step 6 — Open questions or deferred items
 
 Items that couldn't be classified or that the user deferred stay in
@@ -314,6 +321,14 @@ pass doesn't re-litigate them.
   covered) → MY-VAULT.md.
 - A new destination file or category not previously in the vault → add to
   "Established routing conventions" in MY-VAULT.md.
+- A cluster of **context-bound actions** (≥ ~3 open tasks sharing a place /
+  tool / person — errands, calls, at-the-cabin, etc.) that would be more
+  actionable grouped by GTD *context* than scattered across the priority
+  bands → propose a new **context-list section** on the dashboard, a home for
+  those tasks (a file/heading they cluster under, or a context tag), and
+  codify the bucket in MY-VAULT.md under "Dashboard". Context tasks are
+  **not** tagged `#next`. Propose only when the cluster is real — don't
+  manufacture buckets for one or two items.
 - A generalizable protocol change (something every user would want) →
   `commands/triage.md`.
 
@@ -366,4 +381,7 @@ Don't commit. The user commits explicitly when they're ready.
 - **`local/MY-VAULT.md` is a lived-in policy document.** When the user
   establishes a new convention mid-pass, codify it there in Step 7.5 so
   the next pass starts smarter.
+- **One `#next` per project; `#p1` only for hot-this-week.** `#next` is the
+  dashboard filter (the single doable-now action); priority sorts within it.
+  Keeping both selective is what stops the dashboard becoming a firehose.
 - **When in doubt, ask.**

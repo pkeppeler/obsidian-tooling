@@ -57,3 +57,17 @@ Example:
 
 - `#someday/<bucket>` — optional sub-bucketing of someday-maybe items.
 - `#waiting/<who>` — extend `#waiting` with the person blocking the task.
+
+## Dashboard
+
+Deviations from the generic priority-band dashboard in `CLAUDE.md`, plus any
+**context lists** (GTD contexts) you've added. `/triage` proposes a new
+context bucket when it spots a cluster of context-bound actions.
+
+Example:
+
+- **🏠 At home** — context-list section for actions only doable at home
+  (maintenance, tidying). Surfaced via `path includes Home` + `heading
+  includes Tasks` (or a `#@home` tag if they're scattered). These tasks are
+  **not** tagged `#next` — the context section is where they live, not the
+  priority bands.

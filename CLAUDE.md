@@ -65,7 +65,7 @@ The shipping convention — your `local/MY-VAULT.md` can document deviations:
 ```
 vault/
 ├── 00 Inbox.md         ← flat-bullet capture (phone, desktop, Claude all dump here)
-├── 00 Dashboard.md     ← read-only surface: Next, P1, in-flight projects, P2, Waiting
+├── 00 Dashboard.md     ← read-only surface: P1 / P2 / Everything else (all #next), Waiting
 ├── Projects.md         ← GTD Projects List: one ## H2 heading per active project
 ├── Next Actions.md     ← flat list of orphan single-action tasks
 ├── Someday Maybe.md    ← flat someday/maybe list
@@ -87,10 +87,11 @@ file explorer.
 Each active project in `Projects.md` is an **`## H2 heading`** with a flat
 task list below. **Not** a bold bullet with nested sub-task bullets.
 
-Reason: Tasks-plugin's `group by heading` in `00 Dashboard.md` uses the
-nearest preceding heading as each task's group label, so dashboard tasks
-render under their project name automatically (no `[[wikilink]]`
-duplication, no `#project/<slug>` clutter).
+Reason: the dashboard's Tasks queries show each task's **backlink**, which
+renders as `(File > Heading)` — so the nearest preceding H2 heading becomes
+the project label shown inline next to each task (no `[[wikilink]]`
+duplication, no `#project/<slug>` clutter). The H2 also keeps the source
+file readable as a flat per-project task list.
 
 Shape:
 
@@ -100,7 +101,7 @@ Shape:
 Set up a small raised-bed vegetable garden by midsummer.
 
 - [ ] pick a sunny spot in the yard #next #p1
-- [ ] order seeds #next #p2
+- [ ] order seeds #p2
 ```
 
 A `Projects/<Name>.md` file appears only when a project grows past ~10
@@ -138,21 +139,68 @@ right file.
   `Next Actions.md` (never in `00 Dashboard.md`). Tasks plugin queries
   them vault-wide.
 - **Dashboard** (`00 Dashboard.md`) renders Tasks-plugin codeblocks in
-  reading mode (⌘E). Every query is `group by filename` then
-  `group by heading`, so tasks render under
-  `Projects.md > Plant a Garden` (or `Next Actions.md > Next Actions`)
-  — the project name is visible without per-task tags or wikilinks.
-  1. **➡️ Next actions** — `#next`, priority-sorted
-  2. **🔺 All P1** — `#p1` (catches non-#next P1s)
-  3. **🔥 In-flight projects** — manual wikilink list, curated during triage
-  4. **P2** — `#p2`
-  5. **⏸ Waiting on** — `#waiting`
+  reading mode (⌘E). The dashboard surfaces only `#next` tasks (the
+  doable-now action for each project), sectioned by priority. Queries show
+  the **backlink** so each task's project renders inline as
+  `(File > Heading)` — no `group by heading` header-per-project clutter —
+  and use `hide toolbar` + `hide edit button` to stay clean.
+  1. **🔺 P1 — do first** — `#next` + `#p1`
+  2. **🔼 P2 — next up** — `#next` + `#p2`
+  3. **➡️ Everything else** — `#next` with no priority tag
+  4. **⏸ Waiting on** — `#waiting`
+
+  Add a **P3** band only if you use `#p3` (otherwise those tasks fall into
+  "Everything else"). **Context lists** (GTD *contexts*) are optional extra
+  sections for actions gated by *where / how* you can do them rather than by
+  priority — `@home`, `@errands`, `@calls`, a specific place or tool.
+  Surface each via a `path`/`heading` query (when the tasks cluster in one
+  file, like a place-file's `## Tasks`) or a context tag (when they're
+  scattered). Context tasks are **not** tagged `#next` — the context section,
+  not the priority bands, is where they live. `/triage` proposes a new
+  context bucket when it notices a cluster of context-bound actions that
+  would be more actionable grouped this way. There is deliberately **no
+  standalone "All P1" block**:
+  the P1 band already shows every `#next #p1`, so a separate `#p1` query just
+  duplicates it.
+
+### Storage vs. surfacing
+
+Where a task is *stored* and where you *decide what to do* are separate
+concerns — Obsidian lets you have both:
+
+- **Store** tasks with their project/area (an H2 in `Projects.md`, or a
+  project/area file like `Projects/Pocono House.md`), next to their
+  reference material and history — what makes weekly review easy.
+- **Surface** them on `00 Dashboard.md`, whose Tasks queries re-aggregate
+  from wherever they live into one execution view, organized by priority
+  (the bands) and context (context lists).
+
+Paper GTD says don't file next actions by project/area — on paper, filing
+is the only retrieval, so you'd never see "all my calls" at once. The query
+layer removes that constraint, so **bucketing tasks into their project/area
+file is good, not an anti-pattern.**
+
+The rule that keeps it clean: **group by context with a tag or query, never
+by physically moving tasks.** If a file's tasks are all one context
+(everything under a place-file's `## Tasks` is "@ that place"), surface them
+with a `path`/`heading` query. If the same context is scattered across
+projects (e.g. calls in five files), tag them (`#@calls`) and let a query
+gather them — don't yank them out of their projects. The dashboard, not the
+files, is the execution view; if you're opening many files to decide what to
+do, something should be surfaced on the dashboard instead.
 
 ### Tag taxonomy
 
-- `#p1` / `#p2` / `#p3` — priority. Alphabetical = priority order, so `#p1`
-  floats up first when sorting by tag.
-- `#next` — next action; surfaces in dashboard's Next Actions block.
+- `#next` — the **single doable-now next action** for a project: its
+  unblocked next physical step, *not* every task in it. When you complete
+  it, move `#next` to the next step. This is the *filter* that decides what
+  appears on the dashboard. Orphan single-actions in `Next Actions.md` each
+  carry `#next` (each is inherently a next action).
+- `#p1` / `#p2` / `#p3` — priority, the *sort within* the next-action list.
+  Reserve `#p1` for genuinely hot / time-sensitive / this-week items;
+  default most project lead actions to `#p2`. **If everything is `#p1`,
+  nothing is.** Alphabetical = priority order, so `#p1` floats up first when
+  sorting by tag.
 - `#waiting` — blocked on someone else (GTD "waiting for" list).
 - `#project/<slug>` — optional, for cross-cutting tasks or inbox-staged
   tasks not yet in a project file.
@@ -169,8 +217,8 @@ taxonomy" — `/triage` reads both.
 
 ```
 - [ ] basic task
-- [ ] task #p1                       (high priority)
-- [ ] task #p2 #next                 (medium priority, surface as next action)
+- [ ] task #next #p1                 (doable-now next action, high priority)
+- [ ] task #next #p2                 (doable-now next action, medium priority)
 - [ ] task #waiting                  (blocked on someone)
 - [ ] task 📅 2026-05-20             (optional Obsidian-only soft due date)
 - [ ] task 🔁 every week             (recurring)
@@ -220,9 +268,9 @@ any you install in `local/MY-VAULT.md` so Claude knows what's available.
   task system: priority/next/waiting via tags, optional soft due dates
   (`📅 YYYY-MM-DD`), recurrence (`🔁 every week`), and an auto-stamped
   completion date (`✅ YYYY-MM-DD`) when a task is checked. The `00
-  Dashboard.md` queries are Tasks codeblocks (`group by filename` then
-  `group by heading`), which is what makes "tasks render under their
-  project's H2 heading" work.
+  Dashboard.md` queries are Tasks codeblocks that show each task's backlink,
+  which renders `(File > Heading)` inline so you see each task's project
+  without per-task tags or wikilinks.
 - **Dataview** is useful for "query bullets by tag/property within a single
   reference file" needs.
 - **No daily notes** by default. Don't create a daily-notes file or
