@@ -43,8 +43,9 @@ linked here.
   curl -fsSL https://claude.ai/install.sh | bash
   ```
 
-- **[uv](https://docs.astral.sh/uv/)** — provisions Python 3.14, the
-  virtualenv, and all deps. Only mandatory build/runtime dependency.
+- **[uv](https://docs.astral.sh/uv/)** — provisions Python (the series
+  pinned by `requires-python` in `pyproject.toml`), the virtualenv, and
+  all deps. Only mandatory build/runtime dependency.
   ```bash
   brew install uv
   ```
