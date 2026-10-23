@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "obsidian_tooling"
 version = "0.1.0"
 description = "Claude Code-driven GTD tooling for Obsidian vaults (inbox triage, monthly task archival, slash commands)"
-requires-python = "==3.14.*"
+requires-python = "==3.15.*"
 dependencies = [
     "pydantic>=2.13.4",
 ]
