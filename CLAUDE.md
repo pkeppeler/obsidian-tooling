@@ -305,8 +305,10 @@ any you install in `local/MY-VAULT.md` so Claude knows what's available.
 
 ## Python Toolchain
 
-- Python 3.14 (pinned via `requires-python = "==3.14.*"` in
-  `pyproject.toml`; `uv` installs the latest 3.14.x automatically).
+- One Python series, pinned only by `requires-python` in `pyproject.toml`;
+  `uv` installs its latest patch automatically. Ruff and pyright infer their
+  target from it and the uv environment, so don't set ruff `target-version`
+  or pyright `pythonVersion`, and don't name the series anywhere else.
 - `uv` for env + dependencies. Lockfile (`uv.lock`) is committed. **`uv`
   is the only prerequisite** for running the tooling — it provisions
   Python, the virtualenv, and all deps.
