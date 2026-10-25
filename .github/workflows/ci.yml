@@ -18,6 +18,30 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
+      - name: requires-python is the only Python pin
+        run: |
+          uv run --no-project python - <<'EOF'
+          import pathlib
+          import sys
+          import tomllib
+
+          keys = {
+              "ruff": "target-version",
+              "pyright": "pythonVersion",
+              "basedpyright": "pythonVersion",
+              "pyrefly": "python-version",
+          }
+          tool = tomllib.loads(pathlib.Path("pyproject.toml").read_text()).get("tool", {})
+          pins = [f"pyproject.toml sets [tool.{t}] {k}" for t, k in keys.items() if k in tool.get(t, {})]
+          if pathlib.Path(".python-version").exists():
+              pins.append(".python-version exists")
+          for pin in pins:
+              print(
+                  f"::error::{pin}. requires-python in pyproject.toml is the only Python"
+                  " version pin; uv and the tools take the version from it. Remove this pin."
+              )
+          sys.exit(1 if pins else 0)
+          EOF
       - run: uv lock --check
       - run: uv sync --dev
       - run: uv run ruff check
